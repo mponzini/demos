@@ -1,0 +1,15 @@
+Package: demos
+Title: Coding Demos for UC Davis BSU
+Version: 0.0.0.9000
+Authors@R: 
+    person("Matthew", "Ponzini", , "mdponzini@ucdavis.edu", role = c("aut", "cre"))
+Description: Contains a series of coding demos to share new/newly found R packages relevant to the work of UC Davis BSU statisticians.
+License: `use_mit_license()`, `use_gpl3_license()` or friends to pick a
+    license
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.2
+Suggests: 
+    knitr,
+    rmarkdown
+VignetteBuilder: knitr

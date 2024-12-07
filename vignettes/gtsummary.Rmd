@@ -1,0 +1,29 @@
+---
+title: "Demo of the gtsummary package"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Demo of the gtsummary package}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+library(demos)
+library(gtsummary)
+```
+
+# Introduction
+
+The {gtsummary} package provides an elegant and flexible way to create publication-ready analytical and summary tables using the R programming language. The {gtsummary} package summarizes data sets, regression models, and more, using sensible defaults with highly customizable capabilities [ref.](https://www.danieldsjoberg.com/gtsummary/).  
+
+I've found this package to be more customizable and flexible than {arsenal} or {table1}. 
+
+# Basics  
+
