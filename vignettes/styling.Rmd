@@ -14,7 +14,121 @@ knitr::opts_chunk$set(
 )
 ```
 
-```{r setup}
-library(demos)
+# [Tidyverse Style Guide](https://style.tidyverse.org/)
+
+## Files
+
+### Internal structure
+
+Use commented lines of `-` and `=` to break up your file into easily readable chunks.
+
+```{r}
+# Load data -----------------
+
+# Plot data -----------------
+
+```
+
+Load ALL packages at once at the beginning of the file. This is more transparent than loading packages throughout the code or having hidden dependencies that are loaded in a startup file (`.Rprofile`).
+
+## Syntax
+
+### Spacing
+
+-   Commas  
+    -   Always put a space after a comma, never before.  
+
+```{r, eval=FALSE}
+# Good
+x[, 1]
+
+# Bad
+x[,1]
+x[ ,1]
+x[ , 1]
+```
+
+-   Parentheses  
+    -   Do not put spaces inside or outside parentheses for regular function calls.
+    
+```{r, eval=FALSE}
+# Good
+mean(x, na.rm = TRUE)
+
+# Bad
+mean (x, na.rm = TRUE)
+mean( x, na.rm = TRUE )
+
+```
+
+    -   Place a space after `()` used for function arguments:
+    
+```{r, eval=FALSE}
+# Good
+function(x) {}
+
+# Bad
+function (x) {}
+function(x){}
+```
+
+-   Embracing
+    -   The embracing operator `{ }`, should always have innter spaces to help emphasise its special behavior.
+    
+```{r, eval=FALSE}
+# Good
+max_by <- function(data, var, by) {
+  data |>
+    group_by({{ by }}) |>
+    summarise(maximum = max({{ var }}, na.rm = TRUE))
+}
+
+# Bad
+max_by <- function(data, var, by) {
+  data |>
+    group_by({{by}}) |>
+    summarise(maximum = max({{var}}, na.rm = TRUE))
+}
+```
+
+-   Infix Operators
+    -   Most infix operators (`==`, `+`, `-`, `<-`, etc.) should always be surrounded by spaces.  
+    -   There are a few exceptions, which should never be surrounded by spaces:
+        -   Operators with high precendence (`::`, `:::`, `$`, `@`, `[`, `[[`, `^`, `:`), single-sided formulas when the right-hand side is a single identified, or when used in tidy evaluation `!!` (bang-bang) and `!!!` (bang-bang-bang).  
+        
+```{r, eval=FALSE}
+# Good
+height <- (feet * 12) + inches
+mean(x, na.rm = TRUE)
+
+sqrt(x^2 + y^2)
+df$z
+x <- 1:10
+
+~foo
+tribble(
+  ~col1, ~col2,
+  "a",   "b"
+)
+
+call(!!xyz)
+
+# Bad
+height<-feet*12+inches
+mean(x, na.rm=TRUE)
+
+sqrt(x ^ 2 + y ^ 2)
+df $ z
+x <- 1 : 10
+
+~ foo
+tribble(
+  ~ col1, ~ col2,
+  "a", "b"
+)
+
+call(!! xyz)
+call( !! xyz)
+call(! !xyz)
 ```
 
