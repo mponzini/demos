@@ -15,7 +15,7 @@ knitr::opts_chunk$set(
 ```
 
 ```{r setup}
-# library(demos)
+library(demos)
 library(gtsummary)
 ```
 
@@ -214,8 +214,8 @@ tab1 <- tbl_summary(trial, by = trt, include = c(marker, stage))
 tab1
 ```
 
-```{r, echo=TRUE, eval=FALSE}
-paste0('The median (IQR) marker level in the Drug A and Drug B groups are `r inline_text(tab1, variable = marker, column = "Drug A")` and `r inline_text(tab1, variable = marker, column = "Drug B")`, respectively.')
+```{r, echo=FALSE, eval=TRUE}
+cat('The median (IQR) marker level in the Drug A and Drug B groups are `r inline_text(tab1, variable = marker, column = "Drug A")` and `r inline_text(tab1, variable = marker, column = "Drug B")`, respectively.')
 ```
 
 The median (IQR) marker level in the Drug A and Drug B groups are `r inline_text(tab1, variable = marker, column = "Drug A")` and `r inline_text(tab1, variable = marker, column = "Drug B")`, respectively.
