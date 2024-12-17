@@ -1,2 +1,4 @@
 ^demos\.Rproj$
 ^\.Rproj\.user$
+^doc$
+^Meta$
