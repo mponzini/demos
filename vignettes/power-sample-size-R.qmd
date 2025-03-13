@@ -1,0 +1,65 @@
+---
+title: "Power and Sample Size in R"
+format: revealjs
+---
+
+---
+
+-   These slides are a brief introduction to Power and Sample Size in R[@crespi].
+
+---
+
+## Overview 
+
+:::{.incremental}
+
+-   Comparing Means
+-   Comparing Proportions
+      -   Large sample and exact methods
+-   Precision and Confidence Intervals
+-   ANOVA/ANCOVA
+-   Time to Event Outcomes
+
+:::
+
+## General Steps 
+
+::: {.incremental}
+
+-   Specify essentials - research question, primary outcome, analysis method
+-   Formulate hypothesis
+-   Determine effect size (what is a clinically meaningful difference)
+-   Desired power and significance level ($1-\beta=0.8$, $\alpha=0.05$)
+-   Specify other parameters (e.g. dropout)
+-   Calculate sample size
+-   Explore uncertainty
+    
+:::
+
+## Means
+
+
+
+# Proportions
+
+
+
+## Large Sample Methods
+
+
+
+## Exact Methods
+
+
+
+## Precision and Confidence Intervals
+
+
+
+## ANOVA/ANCOVA
+
+
+
+## Time to Event Outcomes
+
+

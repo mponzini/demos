@@ -73,7 +73,7 @@ function(x){}
 ```
 
 -   Embracing
-    -   The embracing operator `{ }`, should always have innter spaces to help emphasise its special behavior.
+    -   The embracing operator `{ }`, should always have inner spaces to help emphasise its special behavior.
     
 ```{r, eval=FALSE}
 # Good
