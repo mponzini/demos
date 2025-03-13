@@ -1,0 +1,65 @@
+---
+title: "R: NIX for Reproducibility"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{R: NIX for Reproducibility}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+pak::pak(rix)
+```
+
+
+# Reproducibility
+
+-   Ability to recover *exactly* the same results from an analysis  
+
+-   Turning our analysis reproducible  
+    -   How easy would it be for someone else to rerun the analysis?
+    -   How easy would it be to update the project?  
+    -   How easy would it be to reuse this code for another project?  
+    -   What guarantee do we have the the output is stable through time?  
+    
+-   Main things influencing an analysis' reproducibility  
+    -   Version of R  
+    -   Versions of packages used  
+    -   Operating system (rare)  
+    -   Hardware (quite rare)  
+
+-   Reproducibility is a continuum  
+    -   Peng, Roger D. 2011. "Reproducible Research in Computational Science"
+    
+-   Popular packages for reproducibility  
+    -   {renv}
+        -   Run `renv::init()` and check the folder for `renv.lock`  
+        -   Records, but does not restore the version of R  
+        -   Installation of old packages can fail (missing OS-dependencies)  
+    -     Docker  
+        -   Containerization tool
+        -   Build *images* and run *containers*
+        -   Docker images:  
+            -   Contain all the software and code needed for your project  
+            -   Are immutable (cannot be changed at run-time)
+            -   Shared on- and offline  
+        -   Very useful and widely used  
+        -   High entry cost (familiarity with Linux recommended)  
+        -   Single point of failure? (what is something happens to Docker in the future)  
+        -   Not dealing with reproducibility per se, we're "abusing" Docker in a way  
+    -   [Rocker project](https://rocker-project.org/)
+
+# {rix} and Nix
+
+-   Nix package manager  
+    -   Package manager: tool to install and manage *packages*  
+
+
+
