@@ -15,7 +15,7 @@ knitr::opts_chunk$set(
 ```
 
 ```{r setup}
-pak::pak(rix)
+pak::pkg_install("rix")
 ```
 
 
@@ -60,6 +60,49 @@ pak::pak(rix)
 
 -   Nix package manager  
     -   Package manager: tool to install and manage *packages*  
+-   Gold standard of reproducibility: R, R packages and other dependencies must be managed  
+-   Nix is a package manager focused on reproducible builds  
+-   Nix deals with everything, with one single text file (Nix expression)  
+-   Nix expressions *always* evaulate and build  
+-   {rix} makes writing Nix expression easy!  
+    -   Simply use the provided `rix()` funciton:
+    
+```{r, echo = TRUE, eval = FALSE}
+library(rix)
 
+rix(
+  date = "2025-01-27",
+  r_pkgs = c('dplyr', 'ggplot2'),
+  systm_pkgs = NULL,
+  git_pkgs = NULL,
+  tex_pkgs = NULL,
+  ide = "code",
+  project_path = "."
+)
+```
 
+-   `renv.lock` files can also be used as starting points
 
+```{r, echo = TRUE, eval = FALSE}
+renv2nix(
+  renv_lock_path = "path/to/original/renv_project/renv.lock",
+  project_path = "path/to/rix_project",
+  override_r_ver = "4.4.1" # optional
+)
+```
+
+-   List required R version and packages  
+-   Optionally: more system packages, packages hosted on GitHub or LaTeX packages  
+-   Optionally: an IDE (RStudio, Radian, VS Code, other)  
+-   Work interactively in an (relatively) isolated, project-specific and reproducible environment!  
+
+-   `rix::rix()` generates a `default.nix` file  
+-   Build expression using `nix-build` (in terminal) or `rix::nix_build()` from R  
+-   "Drop" into the development environment using `nix-shell`  
+-   Expression can be generated even without Nix installed (with some caveats)  
+
+-   Can install specific version of packages (write `dplyr@1.0.0`)  
+-   Can install packages hosted on GitHub  
+-   [Vignettes to get started](https://docs.ropensci.org/rix/articles/)  
+
+-   Need Windows Subsystem for Linux (WSL) in order to use Nix on Windows
