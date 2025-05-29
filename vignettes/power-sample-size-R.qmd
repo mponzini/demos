@@ -1,0 +1,798 @@
+---
+title: "Power and Sample Size in R"
+format: 
+  revealjs:
+    slide-number: true
+    embed-resources: true
+    html-math-method: mathjax
+---
+
+```{r}
+#| label: setup
+#| include: false
+
+pacman::p_load(dplyr, ggplot2, powertools, ggtext)
+```
+
+## Outline
+
+-   One or Two Sample Means\
+-   ANOVA\
+-   Proportions\
+-   Categorical Variables\
+-   Precision and Confidence Intervals\
+-   Crossover Studies\
+-   Multisite Trials\
+-   Time to Event
+
+## Reference  
+
+All information and examples are taken from "Power and Sample Size in R" by Dr Catherine Crespi.  
+
+Textbook is available for download from the UC Davis Library.
+
+## Review {.smaller}
+
+-   Steps in Sample Size Calculation
+    -   Specify the research question, primary outcome, and analysis method\
+    -   Formulate study hypotheses\
+    -   Determine target effect size\
+    -   Specify desired level of power and significance level\
+    -   Specify other parameters\
+    -   Calculate Sample size\
+    -   Explore uncertainty (sensitivity analyses)
+
+## Post hoc Power?
+
+-   Reminder: post hoc power is simply a one-to-one function of the p-value.\
+-   Does not provide any new or useful information\
+-   <b>NOT RECOMMENDED</b>
+
+## One-Sample t-test
+
+-   test statistic T distributions
+    -   $\mu=\mu_{0}:\;T\sim t(N-1)$  
+    -   $\mu=\mu_{A}:\;T\sim t(N-1,\,\lambda), \text{ where } \lambda=\frac{\mu_{A}-\mu_{0}}{\sigma/\sqrt{N}}$  
+-   $H_{0}:\; \mu \ge \mu_{0} \qquad \text{versus} \qquad H_{A}:\; \mu < \mu_{0}$  
+-   $\text{Power}=P[T < t_{\alpha,\,N-1}|T\sim t(N-1, \, \lambda)]$  
+$\qquad \quad = \tau_{N-1,\, \lambda}(t_{\alpha,\,N-1})$
+
+## Lower-tailed one-sample t-test  
+
+-   Example: Test whether population mean A1c is in the non-diabetic range. Our alternative hypothesis is that HbA1c is < 5.7. Assume the population average ($\mu_{0}$) is 4.9 and our sample standard deviation is 2.
+
+```{r}
+#| label: one-samp-ttest
+#| echo: true
+#| eval: true
+
+library(powertools)
+# ttest.1samp(N, delta = mu_a - mu_0, sd, alpha, power, sides)
+ttest.1samp(N = 36, delta = 4.9 - 5.7, sd = 2, alpha = 0.05, sides = 1)
+```
+
+## Lower-tailed one-sample t-test  
+
+```{r}
+#| label: fig-one-sample-t
+#| fig-cap: "Power for lower-tailed one-sample t-test"
+#| echo: false
+
+t_data <- data.frame(
+  Quantile = rep(seq(-6, 4, 0.001), 2)
+) |> 
+  dplyr::mutate(
+    Sample =c(rep(1, length(Quantile) / 2), rep(2, length(Quantile) / 2)) |> as.factor(),
+    NCP = dplyr::if_else(Sample == 1, 0, -2.4)
+  ) |> 
+  dplyr::mutate(
+    Density = dt(x = Quantile, df = 35, ncp = NCP)
+  )
+
+t_data |> ggplot2::ggplot() + 
+  ggplot2::aes(x = Quantile, y = Density, color = Sample) + 
+  ggplot2::geom_line() +
+  ggplot2::annotate(
+    "segment",
+    x = -1.69, xend = -1.69, y = 0, yend = 0.3072034,
+    linetype = "dashed", color = 'black'
+  ) +
+  ggplot2::geom_ribbon(
+    data = t_data |> dplyr::filter(Sample == 2, Quantile < -1.69),
+    ggplot2::aes(
+      x = Quantile,
+      ymin = 0,
+      ymax = Density
+    ),
+    fill = "grey70",
+    alpha = 0.75,
+    inherit.aes = FALSE
+  ) +
+  ggplot2::geom_ribbon(
+    data = t_data |> dplyr::filter(Sample == 1, Quantile < -1.69),
+    ggplot2::aes(
+      x = Quantile,
+      ymin = 0,
+      ymax = Density
+    ),
+    fill = "grey30",
+    alpha = 0.75,
+    inherit.aes = FALSE
+  ) +
+  ggplot2::annotate(
+    "richtext",
+    x = 0, y = t_data |> dplyr::filter(Sample == 1) |> dplyr::pull(Density) |> max() + 0.025,
+    label = "H<sub>0</sub>: T ~ t(35, 0)",
+    fill = NA,
+    label.color = NA
+  ) +
+  ggplot2::annotate(
+    "richtext",
+    x = -2.4, y = t_data |> dplyr::filter(Sample == 2) |> dplyr::pull(Density) |> max() + 0.025,
+    label = "H<sub>A</sub>: T ~ t(35, -2.4)",
+    fill = NA,
+    label.color = NA
+  ) +
+  ggplot2::scale_x_continuous(breaks = c(-2.4, -1.69, 0)) +
+  ggplot2::theme_classic() +
+  ggplot2::theme(legend.position = "none")
+```
+
+## Lower-tailed one-sample t-test
+
+-   Compare the previous results from {powertools} using the equation for power  
+
+```{r}
+#| label: one-sample-t-test-explicit
+#| echo: true
+
+N = 36 
+sigma = 2
+mu0 = 5.7
+muA = 4.9
+
+# calculate critical value
+crit <- qt(p = 0.05, df = N - 1) # crit = -1.689572
+# get our non-centrality parameter (muA - mu0) * sqrt(N)/sigma
+ncp <- (muA - mu0) * sqrt(N) / sigma # ncp = -2.4
+# calculate percentile using noncentral t dist and crit value
+pt(q = crit, df = N - 1, ncp = ncp)
+```
+
+```{r}
+#| echo: true
+
+ttest.1samp(N = 36, delta = 4.9 - 5.7, sd = 2, alpha = 0.05, sides = 1)
+```
+
+##  Upper-tailed one-sample t-test  
+
+-   For an upper-tailed test  
+    -   Critical value is $\;t_{1-\alpha,N-1}$ and we reject for high values of $T$.  
+    -   $\text{Power} = P[T>t_{1-\alpha,N-1}|T \sim t(N-1, \lambda)]$\n$\qquad \quad = 1-\tau_{N-1, \lambda}(t_{1-\alpha,N-1})$
+    
+##  Upper-tailed one-sample t-test  
+
+```{r}
+#| label: fig-one-sample-t-upper
+#| fig-cap: "Power for upper-tailed one-sample t-test"
+#| echo: false
+
+t_data <- data.frame(
+  Quantile = rep(seq(-4, 6, 0.001), 2)
+) |> 
+  dplyr::mutate(
+    Sample =c(rep(1, length(Quantile) / 2), rep(2, length(Quantile) / 2)) |> as.factor(),
+    NCP = dplyr::if_else(Sample == 1, 0, 1.8)
+  ) |> 
+  dplyr::mutate(
+    Density = dt(x = Quantile, df = 35, ncp = NCP)
+  )
+
+t_data |> ggplot2::ggplot() + 
+  ggplot2::aes(x = Quantile, y = Density, color = Sample) + 
+  ggplot2::geom_line() +
+  ggplot2::annotate(
+    "segment",
+    x = 1.69, xend = 1.69, y = 0, yend = 0.3072034,
+    linetype = "dashed", color = 'black'
+  ) +
+  ggplot2::geom_ribbon(
+    data = t_data |> dplyr::filter(Sample == 2, Quantile > 1.69),
+    ggplot2::aes(
+      x = Quantile,
+      ymin = 0,
+      ymax = Density
+    ),
+    fill = "grey70",
+    alpha = 0.75,
+    inherit.aes = FALSE
+  ) +
+  ggplot2::geom_ribbon(
+    data = t_data |> dplyr::filter(Sample == 1, Quantile > 1.69),
+    ggplot2::aes(
+      x = Quantile,
+      ymin = 0,
+      ymax = Density
+    ),
+    fill = "grey30",
+    alpha = 0.75,
+    inherit.aes = FALSE
+  ) +
+  ggplot2::annotate(
+    "richtext",
+    x = 0, y = t_data |> dplyr::filter(Sample == 1) |> dplyr::pull(Density) |> max() + 0.025,
+    label = "H<sub>0</sub>: T ~ t(35, 0)",
+    fill = NA,
+    label.color = NA
+  ) +
+  ggplot2::annotate(
+    "richtext",
+    x = 1.8, y = t_data |> dplyr::filter(Sample == 2) |> dplyr::pull(Density) |> max() + 0.025,
+    label = "H<sub>A</sub>: T ~ t(35, 1.8)",
+    fill = NA,
+    label.color = NA
+  ) +
+  ggplot2::scale_x_continuous(breaks = c(0, 1.69)) +
+  ggplot2::theme_classic() +
+  ggplot2::theme(legend.position = "none")
+```
+
+## Two-sided tests  
+
+-   $H_{0}:\mu=\mu_{0} \quad \text{versus} \quad H_{A}: \mu \ne \mu_{0}$  
+-   $\text{Power} =$ \n $\qquad P[T < t_{\alpha/2, N-1} \; \text{or} T > t_{1-\alpha/2, N-1} | Y_{i} \sim \mathcal{N}(\mu_{A}, \sigma^{2})]$ \n $\quad = 1 + \tau_{N-1,\lambda}(t_{\alpha/2, N-1}) - \tau_{N-1, \lambda}(t_{1-\alpha/2, N-1})$ \n $\quad \dots Magic \dots$ <br> $\quad = P[T^{2} > f_{1-\alpha,N-1}|T^{2} \sim F(1, N-1, \Lambda)]$ \n $\quad = 1 - \mathfrak{F}_{1, N-1, \Lambda}(f_{1-\alpha,1, N-1})$
+
+## One-sample Two-sided tests  
+
+-   Example: Conduct a two-sided test that our mean A1c is not equal to 5.7 ($H_{0}: \mu = 5.7 \qquad \text{versus} \qquad H_{A}: \mu \ne 5.7$)  
+
+```{r}
+#| label: two-sided-one-sample-t
+#| echo: true
+
+ttest.1samp(N = 36, delta = 4.9 - 5.7, sd = 2, alpha = 0.05, sides = 2)
+```
+
+```{r}
+#| label: two-sided-one-sample-t-explicit
+#| echo: true
+
+N = 36; sd = 2; mu0 = 5.7; muA = 4.9
+crit = qf(p = 0.05, df1 = 1, df2 = N-1, lower.tail = FALSE) # crit = 4.121
+ncp = (muA - mu0) * sqrt(N) / sigma # ncp^2 = 5.76
+
+pf(q = crit, df1 = 1, df2 = N - 1, ncp = ncp^2, lower.tail = FALSE)
+```
+
+## One-sample t-test  
+
+-   $N$ is involved in the degrees of freedom and the noncentrality parameter of the noncentral $t$ distribution, thus there is no closed-form solution  
+    -   Numerical methods to solve for $N$  
+    -   Use the one-sample $z$ test
+-   Set `N = NULL` and specify the desired level of power to calculate the sample size required to detect the effect size  
+
+```{r}
+#| label: one-sample-test-sample-size
+#| echo: true
+
+ztest.1samp(N = NULL, delta = 4.9 - 5.7, sd = 2, alpha = 0.05, power = 0.8, sides = 1)
+
+ttest.1samp(N = NULL, delta = 4.9 - 5.7, sd = 2, alpha = 0.05, power = 0.8, sides = 1)
+```
+
+## Two independent samples <i>t</i> test  
+
+-   Similar to power calculations for a one-sample $t$ test, but has a few additional factors to consider  
+    -   Equal or unequal variances  
+    -   Relative sample sizes of the groups 
+-   Standardized effect size: $d = \frac{\mu_{1} - \mu_{2}}{\sigma}$
+-   Which factors affect power
+    -   total sample size $N$  
+    -   magnitude of noncentrality parameter $\lambda$  
+    -   significance level $\alpha$  
+    
+## Two-samples, Equal Variances  
+
+Test $H_{0}: \mu_{1}-\mu_{2} \ge 0 \quad \text{versus} \quad H_{A}: \mu_{1}-\mu_{2} < 0$ at $\alpha=0.05$ with sample size $n_{1}=n_{2}=50$. What is the power when $\mu_{1}-\mu_{2} = 2$ and $\sigma=5$?  
+
+```{r}
+#| echo: true
+# One-sided:
+ttest.2samp(n1 = 50, n.ratio = 1, delta = 2, sd1 = 5, sd.ratio = 1, 
+            alpha = 0.05, power = NULL, sides = 1)
+```
+
+```{r}
+#| echo: true
+# Two-sided:
+ttest.2samp(n1 = 50, n.ratio = 1, delta = 2, sd1 = 5, sd.ratio = 1, 
+            alpha = 0.05, power = NULL, sides = 2)
+```
+## Two-samples, Unequal Variances  
+
+Welch's $t$ test: $T=\frac{\bar{Y}_{1} - \bar{Y}_{2} - \Delta_{0}}{\sqrt{\frac{s_{1}^{2}}{n_{1}} + \frac{s_{2}^{2}}{n_{2}}}}$  
+
+Example: compute power for two-sample $t$ test with $H_{0}: \; \mu_{1}-\mu_{2} \ge 0 \quad \text{versus} \quad H_{A}: \; \mu_{1} -\mu_{2} < 0$ at $\alpha = 0.025$. $\Delta = \mu_{1} - \mu_{2} = 3$. Assume $\sigma_{1}=4$ and $\sigma_{2} = 6$. If $n_{1}=25$ and $n_{2}=75$, what is the power?  
+
+```{r}
+#| echo: true
+
+ttest.2samp(
+  n1 = 25, n.ratio = 75/25, delta = 3, sd1 = 4, sd.ratio = 6/4, 
+  alpha = 0.025, power = NULL, sides = 1
+)
+```
+
+## Two-sample <i>t</i> tests - Sample Size  {.smaller}
+
+-   Normal approximation to the $t$ distribution can provide estimate for relatively large $N$  
+-   Recommend using the $t$-based formulas for calculations  
+
+Example: Size size needed to detect medium effect size $(d=0.5)$ for two-sample $t$ test with equal groups, 80% power, and $\alpha=0.05$.  
+
+```{r}
+#| echo: true
+
+ztest.2samp(n1 = NULL, n.ratio = 1, delta = 0.5, sd1 = 1, alpha = 0.05, power = 0.8, sides = 2)
+```
+
+```{r}
+#| echo: true
+
+ttest.2samp(n1 = NULL, n.ratio = 1, delta = 0.5, sd1 = 1, alpha = 0.05, power = 0.8, sides = 2)
+```
+
+Again, the normal approximation slightly underestimates the required sample size.  
+
+## Two-sample <i>t</i> tests - Allocation  {.smaller}
+
+How does allocation ratio affect power?  
+-   For equal variances:  
+$\lambda=\sqrt{Nw(1-w)}(\frac{\Delta_{A} - \Delta_{0}}{\sigma})$; power is highest when $f(w)=w(1-w)$ is maximized, which occurs when $w=0.5$ (equal allocation)  
+
+<br>
+-   For unequal variances:  
+$\lambda=\sqrt{N\frac{r}{(r+1)(r+f^{2})}}\left(\frac{\Delta_{A}-\Delta_{0}}{\sigma_{1}}\right)$; power is maximized when the ratio of the sample sizes equals the ratio of the population standard deviations.  
+    
+## Two-sample <i>t</i> test - Estimating <i>d</i> {.smaller}  
+
+-   Often use data from prior studies to estimate $d$ to inform our calculations  
+
+$$\hat{d}=\frac{\bar{Y}_{1}-\bar{Y}_{2}}{\sqrt{\frac{(n_{1}-1)s_{1}^{2}+(n_{2}-1)s_{2}^{2}}{n_{1}+n_{2}-2}}}$$  
+
+-   However, this gives an upwardly biased estimate of the population effect size  
+-   Hedges's $g$ has been shown to be unbiased for the true $d$ effect size  
+
+$$g=\hat{d}\left(1-\frac{3}{4(n_{1}+n_{2}) - 9}\right)$$
+
+## Two-sample <i>t</i> test - Lognormal data  
+
+For lognormal data, a test of the difference in means $\mu_{1}-\mu_{2}$ on the log-transformed scale corresponds to a test of the ratio of the medians $\gamma_{1}/\gamma_{2}$ on the original scale.
+
+$$
+  H_{0}: \; \mu_{1} - \mu_{2} = \Delta_{0} \\ 
+  \text{exp}(\mu_{1} - \mu_{2}) = \text{exp}(\Delta_{0}) \\
+  \frac{\text{exp}(\mu_{1})}{\text{exp}(\mu_{2})} = k_{0} \\
+  \frac{\gamma_{1}}{\gamma_{2}} = k_{0}
+$$
+
+##
+
+We'll often have information on the original scale instead of the log-transformed data. That is we have the medians and CVs of the outcome on the original scale and we need to convert:  
+
+$$
+\mu_{1} = \text{log}(\gamma_{1}), \; \mu_{2} = \text{log}(\gamma_{2}), \; \Delta_{A} = \mu_{1} - \mu_{2} \\
+\sigma_{1}^{2} = \text{log}(\text{CV}_{1}^{2} + 1), \; \sigma_{2}^{2} = \text{log}(\text{CV}_{2}^{2} + 1) \\
+\Delta_{0} = \text{log}(k_{0})
+$$
+
+## {.smaller}
+
+Example: Study the median half-life of Compound 1 is longer than that of Compound 2 $$H_{0}: \; \gamma_{1}/\gamma_{2} \le 1 \quad \text{versus} \quad H_{A}: \; \gamma_{1}/\gamma_{2} > 1$$  
+Based on prior studies, Compound 2 has median half-life of 20hrs and CV of 0.8. Assuming half-life of Compound 1 is 25% longer and one-sided $\alpha=0.025$, what is the sample size required to achieve 80% power?
+
+```{r}
+#| echo: true
+
+# calculate mu_1, mu_2, delta_a, and sd
+mu1 <- log(20*1.25)
+mu2 <- log(20)
+delta_a <- mu1 - mu2
+sd <- sqrt(log(0.8^2 + 1))
+
+ttest.2samp(n1 = NULL, n.ratio = 1, delta = delta_a, sd1 = sd, power = 0.8, alpha = 0.025, sides = 1)
+```
+## Paired t test  
+
+Hypotheses involve the difference in between between conditions, $\mu_{d}=\mu_{1}-\mu_{2}$.
+
+<br>
+
+If $\sigma_{1}^{2}=\sigma_{2}^{2}$ then $\sigma_{d}^{2} =  2\sigma^{2}(1-\rho)$; where $\rho$ is the correlation between the two observations taken on the same pair.
+
+-   Power (one-sided test) = $1 - T_{N-1,|\lambda|}(t_{1-\alpha,\, N-1})$  
+-   Power (two-sided test) = $1 - F_{1, N-1, \Lambda}(f_{1-\alpha, 1, N-1})$  
+
+## {.smaller}
+
+Example: A single-arm study will measure participants on a continuous outcome before and after an intervention is applied. The true difference in means from pre- to post-intervention is expected to be 4. Previous studies suggest measurements will have a standard deviation of $\sigma_{1}=\sigma_{2}=10$ and that the correlation between pre and post measurements is likely to be between 0.4 and 0.6. How many participants are needed for 80% power to  test $H_{0}: \; \mu_{d}=0$, with two-sided $\alpha$ of 0.05?  
+
+```{r}
+#| echo: true
+
+rho <- seq(0.4, 0.6, 0.05)
+N <- sapply(
+  rho,
+  function(x) ttest.paired(N = NULL, delta = 4, sd1 = 10, sd2 = 10, rho = x,
+                           alpha = 0.05, power = 0.8, sides = 2, v = TRUE)$N
+)
+
+rbind(rho, N)
+```
+
+## Hypotheses for different study objectives  
+
+For examples of superiority, noninferiority, superiority by a margin, and equivalence see Chapter 4 of the textbook.  
+
+## ANOVA - One-way
+
+Omnibus F test  
+
+-   To calculate the noncentrality parameter we need values for  
+    -   $\sigma$,  
+    -   The group sample sizes $(n_{1},\, \dots,\, n_{\alpha})$, and  
+    -   either group means $(\mu_{1},\, \dots,\, \mu_{\alpha})$ or group effects $(\alpha_{1},\, \dots,\, \alpha_{\alpha})$  
+-   The noncentrality parameter can also be calculated by providing the standardized effect sizes $(\alpha_{1}/\sigma, \, \dots, \, \alpha_{\alpha}/\sigma)$
+    
+##  
+
+A three-arm study, the population group means are 5, 10, and 12. Suppose there are 40 subjects per group and we expect $\sigma=10$. Power for an omnibus F test at $\alpha=0.05$ can be calculated as:
+
+::: {.fragment}
+
+```{r}
+#| echo: true
+# group means
+powertools::anova1way.F.bal(
+  n = 40, mvec = c(5, 10, 12), sd = 10, power = NULL, alpha = 0.05
+)
+```
+
+:::
+
+::: {.fragment}
+
+```{r}
+#| echo: true
+# group effects
+powertools::anova1way.F.bal(
+  n = 40, mvec = c(-4, 1, 3), sd = 10, power = NULL, alpha = 0.05
+)
+```
+
+:::
+
+::: {.fragment}
+
+```{r}
+#| echo: true
+# standardized effect sizes
+powertools::anova1way.F.bal(
+  n = 40, mvec = c(-0.4, 0.1, 0.3), sd = 1, power = NULL, alpha = 0.05
+)
+```
+
+:::
+
+## 
+
+-   `anova1way.F.unbal` is used to calculate the power for studies with unequal sample sizes (unbalanced)
+-   Note: Unbalanced studies generally have lower power even though the total $N$ is the same.
+
+```{r}
+#| echo: true
+# group means
+powertools::anova1way.F.unbal(
+  nvec = c(30, 40, 50), mvec = c(5, 10, 12), sd = 10, alpha = 0.05
+)
+```
+
+##  
+
+To calculate sample size set the power to the desired level and set `n=NULL`. The function will use numerical methods to estimate the smallest sample size to achieve the desired power.  
+
+```{r}
+#| echo: true
+
+powertools::anova1way.F.bal(
+  n = NULL, mvec = c(-0.4, 0.1, 0.3), sd = 1, power = 0.80, alpha = 0.05
+)
+```
+
+## ANOVA - Two-way  
+
+$$Y_{ijk} = \mu + \alpha_{i} + \beta_{j} + \epsilon_{ijk};$$
+$$\text{where} \; \sum_{i}\alpha_{i} = 0 \; \text{and} \; \sum_{j} \beta_{j} = 0$$
+
+$$Y_{ijk} = \mu + \alpha_{i} + \beta_{j} + (\alpha\beta)_{ij} + \epsilon_{ijk}$$
+
+## {.smaller}
+
+Example: A randomized trial will use a 2 × 3 factorial design to assess
+the effectiveness of two intervention strategies to improve diabetes control in
+patients with poorly controlled type 2 diabetes: a behavioral skills intervention
+with two levels (no and yes) and an educational intervention with 3 levels
+(none, 3 sessions and 6 sessions). The primary outcome is hemoglobin A1c level
+at 12-month follow-up. The expected mean A1c without any interventions is
+9.3%. The behavioral skills intervention is expected to reduce mean A1c by 0.6
+percentage points. Three sessions of education is expected to reduce mean A1c
+by 0.4 and 6 sessions is expected to reduce it by 0.8 percentage points. The
+102 Analysis of variance for comparing means
+effects of the two interventions are expected to be additive, i.e., not interact.  
+
+## 
+
+```{r}
+#| echo: false
+
+aov2_df <- data.frame(
+  "None" = c(9.3, 8.7),
+  "3 sessions" = c(8.9, 8.3),
+  "6 sessions" = c(8.5, 7.9),
+  check.names = FALSE
+)
+rownames(aov2_df) <- c("No", "Yes")
+
+kableExtra::kbl(aov2_df) |> 
+  kableExtra::kable_classic(full_width = FALSE)
+```
+
+```{r}
+#| echo: true
+
+mu_matrix <- matrix(c(9.3, 8.9, 8.5, 8.7, 8.3, 7.9), nrow = 2, byrow = TRUE)
+powertools::anova2way.F.bal(
+  n = 30, mmatrix = mu_matrix, sd = 2, alpha = 0.05, v = TRUE
+)
+```
+
+## 
+
+Sample size required for 80% power for the main effects:
+
+```{r}
+#| echo: true
+powertools::anova2way.F.bal(
+  n = NULL, mmatrix = mu_matrix, sd = 2, alpha = 0.05, power = 0.8
+)
+```
+
+If we want to have 80% power for the main effects, we need 61 participants per group for a total sample size of 366.
+
+## {.smaller}
+
+Suppose that we expect the combination of the behavioral intervention and the 6-
+session education to have an effect that is greater than additive and reduce
+mean A1c to 7.3.
+
+```{r}
+#| echo: false
+
+aov2_df_intrxn <- data.frame(
+  "None" = c(9.3, 8.7),
+  "3 sessions" = c(8.9, 8.3),
+  "6 sessions" = c(8.5, 7.3),
+  check.names = FALSE
+)
+rownames(aov2_df_intrxn) <- c("No", "Yes")
+
+kableExtra::kbl(aov2_df_intrxn) |> 
+  kableExtra::kable_classic(full_width = FALSE)
+```
+
+```{r}
+#| echo: false
+
+mu_mat <- matrix(c(9.3, 8.9, 8.5, 8.7, 8.3, 7.3), nrow = 2, byrow = TRUE)
+powertools::anova2way.F.bal(
+  n = 30, mmatrix = mu_mat, sd = 2, alpha = 0.05, v = T
+)
+```
+
+## ANCOVA  
+
+-   Adding a covariate reduces the error variance by a factor of $1-\rho^{2}$ ($\sigma^{2}_{Y|A.X} = \sigma^{2}(1-\rho^{2})$).  
+
+-   If the MSE is reduced, the magnitude of the test statistic is likely to be higher and thus the power is increased ($\text{MSE}=\hat{\sigma}^{2}$; $F_{A} = \text{MSA}/\text{MSE}$).  
+
+-   In the noncentrality parameter, $\sigma^{2}$ is multiplied by $1-\rho^{2}$.  
+
+$$ \Lambda = \frac{n}{\sigma^{2}(1-\rho^{2})} = \sum_{i}\alpha^{2}_{i} $$
+
+## {.smaller}
+
+A three-arm study, the population group means are 5, 10, and 12. Suppose there are 40 subjects per group and we expect $\sigma=10$.  
+Suppose that we will adjust for a baseline covariate in the analysis. The correlation between the covariate and outcome measurement is expected to be in the range of 0.4 to 0.6.
+
+::: {.fragment}
+```{r}
+#| echo: true
+
+powertools::anova1way.F.bal(
+  n = NULL, mvec = c(5, 10, 12), sd = 10, power = 0.8
+)
+```
+
+:::
+
+::: {.fragment}
+
+```{r}
+#| echo: true
+
+powertools::anova1way.F.bal(
+  n = NULL, mvec = c(5, 10, 12), sd = 10, Rsq = 0.4^2, ncov = 1, power = 0.8
+)
+```
+
+:::
+
+::: {.fragment}
+
+```{r}
+#| echo: false
+
+ancova_df <- data.frame(
+  v1 = c("38.07", ""),
+  v2 = c("32.16", "-15.5%"),
+  v3 = c("28.83", "-24.3%"),
+  v4 = c("24.76", "-35.0%")
+)
+rownames(ancova_df) <- c("n per group", "% change")
+
+ancova_df |> 
+  kableExtra::kbl(
+    col.names = c("No covariate", "&rho;=0.4", "&rho;=0.5", "&rho;=0.6"),
+    escape = FALSE
+  ) |> 
+  kableExtra::kable_classic(full_width = FALSE)
+```
+
+:::
+
+## Proportions - Large sample  {.smaller}
+
+-   One-sample test  
+    -   $H_{0}:\,p=p_{0} \; \text{versus} \; H_{A}:\, p \ne p_{0}$  
+    -   Power:  
+    $$ 1-\beta = \Phi\left( \frac{\sqrt{N}|p_{A}-p_{0}|}{\sqrt{p_{A}(1-p_{a})}} - z_{1-\alpha/2} \right)$$  
+    -   Sample Size:  
+    $$N \ge \frac{(z_{1-\alpha/2} + z_{1-\beta})^{2}p_{A}(1-p_{A})}{(p_{A}-p_{0})^{2}}$$
+    
+## 
+
+Example: An experimental therapy will be considered promising if the proportion of patients responding to it exceeds 0.2. If the true proportion of responders is 0.3, how many patients are needed to achieve 80% power, with a one-sided test at α of 0.05?  
+
+$H_{0}: p\le 0.2 \; \text{versus} \; H_{A}: p>0.2$  
+```{r}
+#| echo: true
+
+powertools::prop.1samp(
+  N = NULL, p0 = 0.2, pA = 0.3, power = 0.8, sides = 1
+)
+```
+##  {.smaller}
+
+-   Two sample test  
+    -   $H_{0}: p_{1}-p_{2}=0 \; \text{versus} H_{A}: p_{1}-p_{2} \ne 0$  
+    -   Power:  
+    $$1-\beta \approx \Phi \left( \frac{|p_{1}-p_{2}|}{\sqrt{\frac{p_{1}(1-p_{1})}{n_{1}} + \frac{p_{2}(1-p_{2})}{n_{2}}}} + z_{\alpha/2}\right) $$  
+    -   Sample size:  
+    $$ N \ge \frac{1+r}{r} \frac{(z_{1-\alpha/2}+z_{1-\beta})^{2}[rp_{1}(1-p_{1}) + p_{2}(1-p_{2})]}{(p_{1}-p_{2})^{2}}; \quad n_{2}=rn_{1}$$  
+    
+##  
+
+Example: A randomized trial will compare two treatments on a binary outcome. The expected outcome proportions are p1 = 0.6 and p2 = 0.8. For equal allocation, how many participants are needed to achieve 90% power to test: $H_{0}:p_{1} \ge p_{2} \; \text{versus} \; H_{A}: p_{1}<p_{2}$ at $\alpha=0.025$?  
+
+```{r}
+#| echo: true
+
+powertools::prop.2samp(
+  n1 = NULL, n.ratio = 1, p1 = 0.6, p2 = 0.8, alpha = 0.025, p = 0.9, sides = 1
+)
+```
+
+## {.smaller}
+
+-   Test of Relative Risk  
+    -   Some studies may be interested in the relative risk ($RR=p_{2}/p_{1}$) rather than the difference in proportions  
+    -   The distribution of $\hat{RR}=\hat{p}_{2}/\hat{p}_{1}$ is skewed, but $\text{log}(\hat{RR})$ is approximately normal with mean log(RR) = log($p_{2}/p_{1}$) and approximate variance of  
+    $$Var(log(\hat{RR})) \approx \frac{1-\hat{p}_{1}}{n_{1}\hat{p}_{1}} + \frac{1-\hat{p}_{2}}{n_{2}\hat{p}_{2}} = \frac{1}{x_{1}} - \frac{1}{n_{1}} + \frac{1}{x_{2}} - \frac{1}{n_{2}}$$  
+    
+## 
+-   Power:  
+    $$ \Phi \left( \frac{|\text{log(RR)} - \text{log(RR}_{0})|}{\sqrt{(\frac{1+r}{N})(\frac{1-p_{1}}{p_{1}})(\frac{1-p_{2}}{p_{2}})}} + z_{\alpha/2} \right) $$  
+-   Sample size:  
+    $$N \ge \frac{(z_{1-\alpha/2} + z_{1-\beta})^{2}(1+r)(\frac{1-p_{1}}{p_{1}} + \frac{1-p_{2}}{rp_{2}})}{[\text{log(RR)} - \text{log(RR}_{0})]^{2}}$$
+    
+##  {.smaller}
+
+Example: A cohort study is planned in which the probability of the outcome in the unexposed group is 0.1. The ratio of unexposed to exposed subjects is about 6. What sample size is needed to detect a relative risk of 2, with α of 0.05 two-sided and power of 80%?
+
+```{r}
+#| echo: true
+
+powertools::relrisk(
+  n1 = NULL, n.ratio = 1/6, p1 = 0.1, p2 = 0.2, power = 0.8, v = TRUE
+)
+```
+
+##  {.smaller}
+
+-   Test of Correlated Proportions  
+    -   $H_{0}: \frac{p_{10}}{p_{10} + p_{01}} = \frac{p_{01}}{p_{01} + p_{10}} = 0.5$  
+        -   Probabilities of being discordant are equal  
+
+<img src="corr_prop_table.png">
+
+## {.smaller}
+
+-   Power:  
+    $$\Phi \left( \frac{ \sqrt{N}(p_{10} - p_{01}) - z_{1-\alpha/2}\sqrt{p_{10}+p_{01}}}{\sqrt{p_{10} + p_{01} - (p_{10}-p_{01})^{2}}} \right)$$  
+-   Total sample size:  
+    $$N \ge \frac{\left( z_{1-\alpha/2}\sqrt{p_{10} + p_{01}} + z_{1-\beta}\sqrt{p_{10} + p_{01} - (p_{10}-p_{01})^{2}}\right)^{2}}{(p_{10}-p_{01})^{2}}$$  
+    
+## 
+
+- Alternatively we can use the marginal proportions to calculate phi, which we then use to estimate the discordant probabilities.  
+    -   $\phi_{\text{max}} = \sqrt{\frac{p_{1}(1-p_{2})}{p_{2}(1-p_{1})}}$  
+    -   $p_{01}=p_{+1}(1-p_{1+})-\phi\sqrt{(1-p_{1+})p_{1+}(1-p_{+1})p_{+1}}$\
+        $p_{10}=p_{01} + p_{1+} + p_{+1}$
+        
+##  {.smaller}
+
+Example: The sensitivity of a test is the proportion of positive tests that are true positives. Suppose we plan to compare the sensitivity of a new test and a standard test for detecting the presence of a contaminant in a specimen. Specimens will be split and assessed using each test. The standard test has sensitivity of 0.8 and we expect the new test to have sensitivity of 0.9. What sample size is needed to achieve 90% power to reject the null of no difference in sensitivity, with two-sided α of 0.05?  
+
+Phi is unknown, but cannot exceed $\phi_{\text{max}} = \sqrt{\frac{0.8(1-0.9)}{0.9(1-0.8)}} = 0.667$. Calculate $N$ for $\phi=0, \, 0.1, \, 0.2$
+
+::: {.fragment}
+
+```{r}
+#| echo: true
+
+powertools::prop.paired(
+  N = NULL, p1 = 0.8, p2 = 0.9, phi = 0, power = 0.9, alpha = 0.05, sides = 2
+)
+```
+
+:::
+
+::: {.fragment}
+
+```{r}
+#| echo: true
+
+powertools::prop.paired(
+  N = NULL, p1 = 0.8, p2 = 0.9, phi = 0.1, power = 0.9, alpha = 0.05, sides = 2
+)
+```
+
+:::
+
+## Categorical Variables 
+
+
+
+## Precision and Confidence Intervals  
+
+
+
+## Crossover Studies
+
+
+
+## Multisite Trials
+
+
+## Time-to-Event
