@@ -1,0 +1,54 @@
+---
+title: "Using Git and GitHub/GitLab"
+format: docx
+---
+
+This is a quick guide to using Git and GitHub in R 
+following [Happy Git and GitHub for the useR](https://happygitwithr.com/).  
+
+## Setup
+
+- Register a [GitHub](https://github.com) account if you don't already have one.  
+- Install [Git](https://git-scm.com/install/)  
+
+## Introduce yourself to Git  
+
+**Using the shell**  
+
+```{r}
+#| eval: false
+
+git config --global user.name "Jane Doe"
+git config --global user.email "github-account-email@fake.com"
+git config --global --list
+```
+
+**Using the `usethis` package in R**  
+
+```{r}
+#| eval: false
+# install.packages("usethis")
+usethis::use_git_config(
+  use.name = "Jane Doe", 
+  user.email = "github-account-email@fake.com"
+)
+```
+
+### Configuring the default name for the initial branch
+
+You may want to configure the default branch name for the new repo. 
+Previously, the default branch was named `master` but you can change this 
+using the shell or `usethis` package.
+
+```{r}
+#| eval: false
+
+# shell
+git config --global init.defaultBranch main
+# usethis
+usethis::git_default_branch_configure() # default: name = "main"
+```
+
+## Connect Git, GitHub, RStudio
+
+Setting up the connection for the HTTPS protocol using a **personal access token (PAT)**.
