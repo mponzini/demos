@@ -1,0 +1,278 @@
+---
+title: "Introduction to renv"
+subtitle: "Reproducible R Environments"
+format: 
+  revealjs:
+    slide-number: true
+    embed-resources: true
+    theme: default
+---
+
+## What is renv?
+
+**renv** is an R package that helps you create **reproducible environments** for your R projects.
+
+::: {.incremental}
+- Manages R package dependencies on a per-project basis
+- Records exact package versions used in your project
+- Makes it easy to restore the same environment later
+- Similar to Python's virtualenv or Node's npm
+:::
+
+::: {.notes}
+renv provides isolated, reproducible environments for your R projects
+:::
+
+## Why Use renv? {.smaller}
+
+**Problems it solves:**
+
+::: {.incremental}
+- **Version conflicts**: Different projects need different package versions
+- **Reproducibility**: "It works on my machine" syndrome
+- **Collaboration**: Team members need identical environments
+- **Time travel**: Restore project state from months/years ago
+:::
+
+. . .
+
+**Benefits:**
+
+::: {.incremental}
+- Project-specific libraries (isolation)
+- Explicit dependency tracking
+- Faster package installation (shared cache)
+- Works with R packages, Bioconductor, and GitHub packages
+:::
+
+## Setting Up renv for a New Project
+
+**Initialize renv in your project:**
+
+```{r}
+#| eval: false
+#| echo: true
+
+# Install renv (once)
+install.packages("renv")
+
+# Initialize renv in your project directory
+renv::init()
+```
+
+. . .
+
+**What happens:**
+
+::: {.incremental}
+- Creates `renv/` folder (project library)
+- Creates `renv.lock` file (dependency record)
+- Creates `.Rprofile` (activates renv on startup)
+- Copies currently installed packages to project library
+:::
+
+## Using renv: Basic Workflow
+
+**1. Install packages as usual:**
+```{r}
+#| eval: false
+#| echo: true
+install.packages("dplyr")
+install.packages("ggplot2")
+```
+
+. . .
+
+**2. Take a snapshot:**
+```{r}
+#| eval: false
+#| echo: true
+renv::snapshot()
+```
+Records current package versions to `renv.lock`
+
+. . .
+
+**3. Restore environment (on different machine/later):**
+```{r}
+#| eval: false
+#| echo: true
+renv::restore()
+```
+Installs exact versions from `renv.lock`
+
+## Working with renv: Key Functions {.smaller}
+
+| Function | Purpose |
+|----------|---------|
+| `renv::init()` | Initialize renv in a project |
+| `renv::snapshot()` | Save current package versions to lockfile |
+| `renv::restore()` | Install packages from lockfile |
+| `renv::status()` | Check synchronization status |
+| `renv::update()` | Update packages to latest versions |
+| `renv::install()` | Install packages (CRAN, GitHub, Bioconductor) |
+| `renv::remove()` | Remove packages from project library |
+
+. . .
+
+**Pro tip:** Run `renv::status()` regularly to see if your lockfile is synchronized with installed packages!
+
+## Collaboration Workflow with renv
+
+**Developer A (setting up project):**
+```{r}
+#| eval: false
+#| echo: true
+renv::init()
+# ... work on project, install packages ...
+renv::snapshot()
+# Commit renv.lock to version control (Git)
+```
+
+. . .
+
+**Developer B (joining project):**
+```{r}
+#| eval: false
+#| echo: true
+# Clone/pull repository
+# Open R project - renv activates automatically
+renv::restore()  # Install all dependencies
+# Start working!
+```
+
+. . .
+
+**Key files to commit:**
+- ✅ `renv.lock` (dependency record)
+- ✅ `.Rprofile` (activation script)
+- ✅ `renv/settings.json` (configuration)
+- ❌ `renv/library/` (don't commit installed packages)
+
+## Using renv with R Packages
+
+**For R package development:**
+
+```{r}
+#| eval: false
+#| echo: true
+# Initialize renv
+renv::init()
+
+# Install development dependencies
+renv::install("devtools")
+renv::install("testthat")
+renv::install("roxygen2")
+
+# Snapshot your development environment
+renv::snapshot(type = "all")
+```
+
+. . .
+
+**Benefits for package developers:**
+
+::: {.incremental}
+- Separate development dependencies from package dependencies
+- Consistent testing environment across contributors
+- Easier CI/CD setup
+:::
+
+## Best Practices and Tips {.smaller}
+
+**Do's:**
+
+::: {.incremental}
+- ✅ Commit `renv.lock` to version control
+- ✅ Run `renv::snapshot()` after installing/updating packages
+- ✅ Use `renv::status()` to check synchronization
+- ✅ Run `renv::restore()` after pulling changes
+:::
+
+. . .
+
+**Don'ts:**
+
+::: {.incremental}
+- ❌ Don't commit the `renv/library/` folder (too large)
+- ❌ Don't manually edit `renv.lock` (use renv functions)
+- ❌ Don't mix global and project libraries
+:::
+
+. . .
+
+**Troubleshooting:**
+
+```{r}
+#| eval: false
+#| echo: true
+# If something goes wrong
+renv::diagnostics()  # Check for issues
+renv::rebuild()      # Rebuild packages
+renv::repair()       # Repair the library
+```
+
+## Common Scenarios {.smaller}
+
+**Updating a single package:**
+```{r}
+#| eval: false
+#| echo: true
+renv::update("dplyr")
+renv::snapshot()
+```
+
+. . .
+
+**Installing from GitHub:**
+```{r}
+#| eval: false
+#| echo: true
+renv::install("tidyverse/dplyr")
+renv::snapshot()
+```
+
+. . .
+
+**Rolling back to previous state:**
+```{r}
+#| eval: false
+#| echo: true
+renv::history()     # View snapshot history
+renv::revert()      # Revert to previous snapshot
+```
+
+. . .
+
+**Deactivating renv (if needed):**
+```{r}
+#| eval: false
+#| echo: true
+renv::deactivate()  # Use global library instead
+```
+
+## Resources and Getting Help
+
+**Documentation:**
+
+- [renv website](https://rstudio.github.io/renv/)
+- [Introduction vignette](https://rstudio.github.io/renv/articles/renv.html)
+- [Collaboration guide](https://rstudio.github.io/renv/articles/collaborating.html)
+
+. . .
+
+**Quick reference:**
+
+```{r}
+#| eval: false
+#| echo: true
+?renv                  # Package help
+vignette("renv")       # Introduction vignette
+renv::diagnostics()    # Troubleshooting
+```
+
+. . .
+
+**Questions?**
+
+*Start using renv in your next R project for better reproducibility!*
