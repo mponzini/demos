@@ -1,0 +1,145 @@
+---
+title: "Using GitHub Copilot Coding Agents"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Using GitHub Copilot Coding Agents}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+library(demos)
+library(gtsummary)
+```
+
+# Introduction
+
+GitHub Copilot is an AI-powered coding assistant that can help you write, understand, and review code. Beyond line-by-line autocomplete, Copilot also offers **coding agents** — autonomous AI assistants that can plan and execute multi-step coding tasks on your behalf, directly within GitHub issues and pull requests.
+
+This vignette walks through how to use Copilot's coding agents and demonstrates the kind of analysis they can help you produce.
+
+---
+
+# What Are Copilot Coding Agents?
+
+Copilot coding agents (also called **Copilot Workspace** or **agent mode** in GitHub) allow you to describe a task in natural language — such as in a GitHub Issue — and have Copilot automatically:
+
+1. Plan the steps needed to complete the task.
+2. Write or modify code files.
+3. Open a pull request with the proposed changes.
+
+You remain in control: you can review, edit, and approve every change before it is merged.
+
+---
+
+# Step-by-Step: Using Copilot Coding Agents
+
+## Step 1 — Open a GitHub Issue
+
+Describe the task you want Copilot to perform in plain English. Be specific about inputs, outputs, and any constraints. For example:
+
+> *Create a vignette with step-by-step instructions on using Copilot's coding agents. Include a sample analysis using the mtcars data. Summarize mpg, disp, wt, and cyl by am. Fit a linear model (mpg = disp + wt + cyl), and display the model estimates in a table.*
+
+## Step 2 — Assign the Issue to Copilot
+
+In the GitHub issue sidebar, click **Assignees** and select **Copilot** from the list. This triggers the agent to begin working on the issue.
+
+## Step 3 — Review the Agent's Plan
+
+Copilot will post a comment outlining its plan — the files it intends to create or modify and the steps it will take. Review this plan and add any clarifying comments if needed.
+
+## Step 4 — Copilot Opens a Pull Request
+
+Once the agent has implemented the changes, it will open a pull request linked to the issue. The PR will contain all new or modified files.
+
+## Step 5 — Review, Iterate, and Merge
+
+Review the pull request diff. You can:
+
+- Leave review comments asking for revisions (Copilot will update the PR).
+- Edit files directly in the PR branch.
+- Approve and merge when satisfied.
+
+---
+
+# Sample Analysis: mtcars
+
+The following analysis was produced as a demonstration of the work Copilot coding agents can generate.
+
+## Summary Statistics by Transmission Type
+
+The `am` variable in `mtcars` encodes transmission type: `0` = automatic, `1` = manual. We summarize `mpg`, `disp`, `wt`, and `cyl` by `am` using the {gtsummary} package.
+
+```{r summary-table, message=FALSE, warning=FALSE}
+mtcars |>
+  gtsummary::tbl_summary(
+    by = am,
+    include = c(mpg, disp, wt, cyl),
+    statistic = list(
+      all_continuous() ~ "{mean} ({sd})",
+      all_categorical() ~ "{n} ({p}%)"
+    ),
+    digits = all_continuous() ~ 2,
+    label = list(
+      mpg  ~ "Miles per Gallon",
+      disp ~ "Displacement (cu.in.)",
+      wt   ~ "Weight (1000 lbs)",
+      cyl  ~ "Number of Cylinders"
+    )
+  ) |>
+  gtsummary::modify_header(
+    stat_1 = "**Automatic**\nN = {n}",
+    stat_2 = "**Manual**\nN = {n}"
+  ) |>
+  gtsummary::modify_spanning_header(
+    gtsummary::all_stat_cols() ~ "**Transmission**"
+  ) |>
+  gtsummary::add_overall() |>
+  gtsummary::add_p() |>
+  gtsummary::bold_labels()
+```
+
+Vehicles with manual transmissions (`am = 1`) tend to have higher fuel efficiency, lower displacement, and lower weight compared to automatic transmission vehicles.
+
+---
+
+## Linear Model: mpg ~ disp + wt + cyl
+
+We fit a linear regression model predicting `mpg` from displacement (`disp`), weight (`wt`), and number of cylinders (`cyl`).
+
+```{r linear-model, message=FALSE, warning=FALSE}
+fit <- lm(mpg ~ disp + wt + cyl, data = mtcars)
+
+gtsummary::tbl_regression(
+  x = fit,
+  label = list(
+    disp ~ "Displacement (cu.in.)",
+    wt   ~ "Weight (1000 lbs)",
+    cyl  ~ "Number of Cylinders"
+  )
+) |>
+  gtsummary::add_glance_source_note(
+    include = c(r.squared, adj.r.squared, nobs)
+  ) |>
+  gtsummary::bold_labels() |>
+  gtsummary::bold_p(t = 0.05) |>
+  gtsummary::modify_caption("**Linear Model: mpg ~ disp + wt + cyl**")
+```
+
+The model estimates show how each predictor is associated with fuel efficiency after adjusting for the other variables. Weight (`wt`) and number of cylinders (`cyl`) are typically the strongest predictors of `mpg` in this dataset.
+
+---
+
+# Tips for Getting the Best Results from Copilot Coding Agents
+
+- **Be specific in your issue description.** The more detail you provide about expected inputs, outputs, and coding style, the better the agent's output will be.
+- **Iterate through PR review comments.** If the generated code isn't quite right, leave a targeted comment and the agent will revise.
+- **Use Copilot Chat for smaller tasks.** For quick, in-editor questions or snippets, Copilot Chat (available in RStudio via the GitHub Copilot extension or VS Code) is faster than the full agent workflow.
+- **Always review generated code.** Copilot agents are powerful, but human review ensures correctness, security, and adherence to project conventions.
