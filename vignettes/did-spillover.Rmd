@@ -1,0 +1,424 @@
+---
+title: "Difference-in-Differences Analysis with Spillover Effects"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Difference-in-Differences Analysis with Spillover Effects}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  warning = FALSE,
+  message = FALSE,
+  fig.width = 8,
+  fig.height = 6
+)
+```
+
+# Introduction
+
+This vignette demonstrates how to conduct a difference-in-differences (DiD) analysis when treatment spillover or interference effects are present. In many experimental or quasi-experimental settings, the treatment assignment of one unit may affect the outcomes of other units - a violation of the Stable Unit Treatment Value Assumption (SUTVA). This is particularly common in contexts such as:
+
+- **Geographic spillovers**: Treatment in one region affects neighboring regions
+- **Social network effects**: Treatment of some individuals affects their connections
+- **Cluster-level interventions**: Treatment saturation within clusters varies
+
+We'll implement a DiD framework that accounts for spillover by incorporating a measure of treatment intensity or saturation.
+
+# Conceptual Framework
+
+## Standard DiD Model
+
+The standard DiD model compares changes over time between treated and control units:
+
+$$Y_{it} = \beta_0 + \beta_1 \text{Treated}_i + \beta_2 \text{Post}_t + \beta_3 (\text{Treated}_i \times \text{Post}_t) + \epsilon_{it}$$
+
+where:
+- $Y_{it}$ is the outcome for unit $i$ at time $t$
+- $\text{Treated}_i$ is the treatment indicator
+- $\text{Post}_t$ is the post-treatment period indicator
+- $\beta_3$ is the DiD estimate (average treatment effect)
+
+## DiD with Spillover/Saturation
+
+When spillover exists, we extend the model to account for treatment intensity:
+
+$$Y_{it} = \beta_0 + \beta_1 \text{Treated}_i + \beta_2 \text{Post}_t + \beta_3 (\text{Treated}_i \times \text{Post}_t) + \beta_4 \text{Saturation}_{it} + \beta_5 (\text{Saturation}_{it} \times \text{Post}_t) + \epsilon_{it}$$
+
+where:
+- $\text{Saturation}_{it}$ measures treatment intensity in unit $i$'s neighborhood/cluster at time $t$
+- $\beta_3$ captures the direct treatment effect
+- $\beta_5$ captures the spillover/saturation effect
+
+Alternative specifications may include:
+- Separate spillover effects for treated vs control units
+- Non-linear saturation effects
+- Distance-weighted spillover measures
+
+# Setup and Data Simulation
+
+```{r setup}
+library(demos)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(broom)
+
+# Set seed for reproducibility
+set.seed(42)
+```
+
+## Simulate Data with Spillover Effects
+
+We'll create a synthetic dataset mimicking a cluster-randomized trial where:
+- Units are nested within clusters (e.g., individuals in villages)
+- Some clusters are assigned to treatment
+- Treatment effects spill over within clusters based on saturation
+
+```{r simulate_data}
+# Parameters
+n_clusters <- 50
+n_units_per_cluster <- 20
+n_total <- n_clusters * n_units_per_cluster
+
+# Treatment assignment: randomly assign half of clusters to treatment
+cluster_treatment <- data.frame(
+  cluster_id = 1:n_clusters,
+  cluster_treated = sample(c(0, 1), n_clusters, replace = TRUE)
+)
+
+# Within treated clusters, vary the saturation (proportion treated)
+# In control clusters, saturation = 0
+cluster_treatment$saturation <- ifelse(
+  cluster_treatment$cluster_treated == 1,
+  runif(n_clusters, 0.3, 0.9),  # 30-90% saturation in treated clusters
+  0
+)
+
+# Create unit-level data
+data_did <- expand.grid(
+  cluster_id = 1:n_clusters,
+  unit_id = 1:n_units_per_cluster,
+  time = c("pre", "post")
+) %>%
+  left_join(cluster_treatment, by = "cluster_id") %>%
+  arrange(cluster_id, unit_id, time) %>%
+  mutate(
+    # Individual treatment status (randomly sampled based on cluster saturation)
+    treated = ifelse(
+      cluster_treated == 1,
+      rbinom(n(), 1, saturation),
+      0
+    )
+  )
+
+# Generate outcomes
+# True model parameters
+beta_0 <- 50          # Baseline outcome
+beta_cluster <- 2     # Cluster random effect SD
+beta_time <- 5        # Time trend
+beta_direct <- 8      # Direct treatment effect
+beta_spillover <- 12  # Spillover effect per unit increase in saturation
+
+data_did <- data_did %>%
+  group_by(cluster_id) %>%
+  mutate(
+    cluster_effect = rnorm(1, 0, beta_cluster)
+  ) %>%
+  ungroup() %>%
+  mutate(
+    post = ifelse(time == "post", 1, 0),
+    # Outcome model with spillover
+    Y = beta_0 +
+        cluster_effect +
+        beta_time * post +
+        beta_direct * treated * post +
+        beta_spillover * saturation * post +
+        rnorm(n(), 0, 5)  # Individual noise
+  )
+
+# Display summary
+head(data_did, 10)
+```
+
+## Data Summary Statistics
+
+```{r data_summary}
+# Summary by treatment status and time
+data_did %>%
+  group_by(time, cluster_treated) %>%
+  summarise(
+    n_units = n(),
+    mean_Y = mean(Y),
+    sd_Y = sd(Y),
+    mean_saturation = mean(saturation),
+    .groups = "drop"
+  )
+```
+
+# Analysis
+
+## Naive DiD (Ignoring Spillover)
+
+First, let's see what happens if we ignore spillover effects:
+
+```{r naive_did}
+# Standard DiD specification
+model_naive <- lm(
+  Y ~ treated + post + treated:post,
+  data = data_did
+)
+
+# Display results
+tidy(model_naive, conf.int = TRUE) %>%
+  filter(term == "treated:post") %>%
+  select(term, estimate, std.error, conf.low, conf.high, p.value)
+```
+
+The naive DiD estimate of `r round(coef(model_naive)["treated:post"], 2)` combines both direct and spillover effects, but doesn't separate them.
+
+## DiD with Spillover/Saturation
+
+Now we include the saturation measure:
+
+```{r did_spillover}
+# DiD with saturation
+model_spillover <- lm(
+  Y ~ treated + post + saturation +
+      treated:post + saturation:post,
+  data = data_did
+)
+
+# Display results
+tidy(model_spillover, conf.int = TRUE) %>%
+  select(term, estimate, std.error, conf.low, conf.high, p.value)
+```
+
+### Interpretation
+
+The key coefficients are:
+
+- **Direct treatment effect** (`treated:post`): `r round(coef(model_spillover)["treated:post"], 2)` - the effect of being directly treated, holding saturation constant
+- **Spillover effect** (`saturation:post`): `r round(coef(model_spillover)["saturation:post"], 2)` - the effect of a one-unit increase in cluster saturation (0 to 1 scale)
+
+Note: The direct treatment effect is estimated to be `r round(coef(model_spillover)["treated:post"], 2)` (true value: `r beta_direct`) and the spillover effect is `r round(coef(model_spillover)["saturation:post"], 2)` (true value: `r beta_spillover`).
+
+## Separate Spillover for Treated vs Control Units
+
+We may want to allow spillover effects to differ for treated vs control individuals:
+
+```{r did_spillover_interaction}
+# DiD with treatment-specific spillover
+model_spillover_int <- lm(
+  Y ~ treated + post + saturation +
+      treated:post + saturation:post + treated:saturation:post,
+  data = data_did
+)
+
+# Display results
+tidy(model_spillover_int, conf.int = TRUE) %>%
+  select(term, estimate, std.error, conf.low, conf.high, p.value)
+```
+
+## Cluster-Robust Standard Errors
+
+Since units within clusters are likely correlated, we should use cluster-robust standard errors:
+
+```{r robust_se, message=FALSE}
+# Install/load estimatr for robust SEs if available
+if (requireNamespace("estimatr", quietly = TRUE)) {
+  library(estimatr)
+
+  model_robust <- lm_robust(
+    Y ~ treated + post + saturation +
+        treated:post + saturation:post,
+    data = data_did,
+    clusters = cluster_id,
+    se_type = "CR2"
+  )
+
+  tidy(model_robust) %>%
+    select(term, estimate, std.error, conf.low, conf.high, p.value)
+} else {
+  message("Install 'estimatr' package for cluster-robust standard errors")
+}
+```
+
+# Visualization
+
+## Treatment Effects Over Time
+
+```{r plot_effects}
+# Calculate means by treatment status and time
+plot_data <- data_did %>%
+  mutate(
+    treatment_group = case_when(
+      treated == 1 ~ "Directly Treated",
+      cluster_treated == 1 & treated == 0 ~ "Control in Treated Cluster",
+      TRUE ~ "Pure Control"
+    )
+  ) %>%
+  group_by(time, treatment_group) %>%
+  summarise(
+    mean_Y = mean(Y),
+    se_Y = sd(Y) / sqrt(n()),
+    .groups = "drop"
+  )
+
+ggplot(plot_data, aes(x = time, y = mean_Y, color = treatment_group, group = treatment_group)) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 3) +
+  geom_errorbar(aes(ymin = mean_Y - 1.96*se_Y, ymax = mean_Y + 1.96*se_Y), width = 0.1) +
+  labs(
+    title = "Difference-in-Differences with Spillover Effects",
+    subtitle = "Mean outcomes by treatment status and time",
+    x = "Time Period",
+    y = "Mean Outcome (Y)",
+    color = "Treatment Group"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+```
+
+## Saturation Effects
+
+Visualize how outcomes vary with saturation level:
+
+```{r plot_saturation}
+# Plot for post-period only
+data_did %>%
+  filter(post == 1, cluster_treated == 1) %>%
+  ggplot(aes(x = saturation, y = Y, color = factor(treated))) +
+  geom_point(alpha = 0.3) +
+  geom_smooth(method = "lm", se = TRUE) +
+  labs(
+    title = "Outcome vs. Cluster Saturation (Post-Treatment)",
+    subtitle = "Among units in treated clusters",
+    x = "Cluster Treatment Saturation",
+    y = "Outcome (Y)",
+    color = "Individually Treated"
+  ) +
+  scale_color_manual(values = c("0" = "#E69F00", "1" = "#56B4E9"),
+                     labels = c("0" = "No", "1" = "Yes")) +
+  theme_minimal()
+```
+
+## Distribution of Treatment Effects
+
+```{r plot_distribution}
+# Calculate treatment effects for each unit
+data_effects <- data_did %>%
+  select(cluster_id, unit_id, time, Y, treated, saturation) %>%
+  pivot_wider(names_from = time, values_from = Y) %>%
+  mutate(
+    effect = post - pre,
+    treatment_group = case_when(
+      treated == 1 ~ "Directly Treated",
+      saturation > 0 ~ "Spillover Only",
+      TRUE ~ "Pure Control"
+    )
+  )
+
+ggplot(data_effects, aes(x = effect, fill = treatment_group)) +
+  geom_density(alpha = 0.6) +
+  labs(
+    title = "Distribution of Individual-Level Treatment Effects",
+    x = "Change in Outcome (Post - Pre)",
+    y = "Density",
+    fill = "Treatment Group"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+```
+
+# Model Comparison
+
+Compare the different model specifications:
+
+```{r model_comparison}
+# Create comparison table
+comparison <- bind_rows(
+  tidy(model_naive, conf.int = TRUE) %>%
+    filter(term == "treated:post") %>%
+    mutate(model = "Naive DiD"),
+  tidy(model_spillover, conf.int = TRUE) %>%
+    filter(term %in% c("treated:post", "saturation:post")) %>%
+    mutate(model = "DiD with Saturation"),
+  tidy(model_spillover_int, conf.int = TRUE) %>%
+    filter(grepl("post", term)) %>%
+    mutate(model = "DiD with Interaction")
+) %>%
+  select(model, term, estimate, std.error, conf.low, conf.high, p.value)
+
+print(comparison, n = Inf)
+```
+
+```{r model_fit}
+# Model fit comparison
+data.frame(
+  Model = c("Naive DiD", "DiD with Saturation", "DiD with Interaction"),
+  AIC = c(AIC(model_naive), AIC(model_spillover), AIC(model_spillover_int)),
+  BIC = c(BIC(model_naive), BIC(model_spillover), BIC(model_spillover_int)),
+  R_squared = c(
+    summary(model_naive)$r.squared,
+    summary(model_spillover)$r.squared,
+    summary(model_spillover_int)$r.squared
+  )
+) %>%
+  arrange(AIC)
+```
+
+# Discussion
+
+## Key Considerations
+
+1. **Defining Saturation**: The saturation measure should reflect the mechanism of spillover:
+   - Proportion of treated units in a cluster
+   - Distance-weighted treatment exposure
+   - Network-based measures (e.g., proportion of treated neighbors)
+
+2. **Parallel Trends Assumption**: The DiD approach assumes that in the absence of treatment, treated and control groups would have followed parallel trends. This should be tested when pre-treatment data are available.
+
+3. **Cluster-Level Randomization**: When treatment is assigned at the cluster level, all inference should account for clustering.
+
+4. **Non-linear Effects**: Spillover effects may be non-linear (e.g., threshold effects). Consider:
+   - Polynomial terms in saturation
+   - Categorical saturation levels
+   - Splines or other flexible functional forms
+
+5. **Cross-Cluster Spillover**: This framework assumes spillover occurs within clusters. If treatment in one cluster affects other clusters, additional methods are needed.
+
+## Extensions
+
+- **Event Study Design**: Estimate time-varying treatment effects
+- **Staggered Adoption**: Use recent DiD methods for staggered treatment timing
+- **Mediation Analysis**: Decompose spillover mechanisms
+- **Heterogeneous Effects**: Allow treatment effects to vary by unit characteristics
+
+# Summary
+
+This vignette demonstrated how to:
+
+1. Simulate data with treatment spillover effects
+2. Estimate DiD models that account for spillover/saturation
+3. Separate direct treatment effects from spillover effects
+4. Visualize treatment effects and saturation relationships
+5. Compare model specifications and fit
+
+The key insight is that ignoring spillover effects can lead to biased estimates of treatment effects. By incorporating measures of treatment intensity or saturation, we can better understand both direct and indirect effects of interventions.
+
+# References
+
+- Angelucci, M., & Di Maro, V. (2016). Program evaluation and spillover effects. *Journal of Development Effectiveness*, 8(1), 22-43.
+- Baird, S., Bohren, J. A., McIntosh, C., & Özler, B. (2018). Optimal design of experiments in the presence of interference. *Review of Economics and Statistics*, 100(5), 844-860.
+- Hudgens, M. G., & Halloran, M. E. (2008). Toward causal inference with interference. *Journal of the American Statistical Association*, 103(482), 832-842.
+- Miguel, E., & Kremer, M. (2004). Worms: identifying impacts on education and health in the presence of treatment externalities. *Econometrica*, 72(1), 159-217.
+
+# Session Information
+
+```{r session_info}
+sessionInfo()
+```
