@@ -51,3 +51,8 @@ rsconnect/
 inst/doc
 /doc/
 /Meta/
+
+# exported xlsx files
+inst/example-export/
+# html files
+inst/reprex/*.html
