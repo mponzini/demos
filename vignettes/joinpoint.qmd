@@ -254,8 +254,9 @@ Rules:
 ::: {.column width="55%"}
 **Model Selection**
 
-- Uses **permutation tests** to determine the optimal number of joinpoints
-- Significance level: 0.05 (default)
+- Default method: **Weighted BIC (WBIC)**
+- Fits models with 0, 1, 2, … *k* joinpoints and selects the one with the lowest WBIC
+- WBIC penalizes model complexity, balancing fit against the number of joinpoints
 - Method: Weighted least squares on log scale
 :::
 ::: {.column width="40%"}
@@ -271,7 +272,7 @@ Rules:
 
 1. Click **Run** (or **Ctrl+R**)
 2. Joinpoint fits models with 0, 1, 2, … *k* joinpoints
-3. The **permutation test** selects the best model
+3. **Weighted BIC** selects the best model (lowest WBIC wins)
 4. Results appear in the **Output** window
 
 The software reports:
@@ -331,7 +332,7 @@ R                               Joinpoint Software
 ───────────────────────         ──────────────────────────────────
 1. Load / clean data            4. Import tab-delimited file
 2. Fit Poisson model            5. Specify variables & settings
-3. Export rate + SE  ──────►    6. Run permutation test
+3. Export rate + SE  ──────►    6. Weighted BIC model selection
    (write_tsv)                  7. Review APC / AAPC results
                       ◄──────   8. Export results table / graphs
 9. Import results               
@@ -354,8 +355,8 @@ R                               Joinpoint Software
 - NCI SEER Stat tutorials:\
   <https://seer.cancer.gov/seerstat/>
 
-- Kim HJ et al. (2000). Permutation tests for joinpoint regression with
-  applications to cancer rates. *Statistics in Medicine*, 19(3), 335–351.
-
 - Clegg LX et al. (2009). Joinpoint regression analysis of cancer trends.
   *Journal of the National Cancer Institute*, 101(12), 913–914.
+
+- Tiwari RC et al. (2005). Weighted AIC and BIC for joinpoint regression.
+  *Statistics and Its Interface*, 2(4), 379–396.
