@@ -1,0 +1,362 @@
+---
+title: "Joinpoint Analysis: Modeling and Analyzing Trends in Rates Over Time"
+format: 
+  revealjs:
+    slide-number: true
+    embed-resources: true
+    theme: default
+---
+
+```{r}
+#| label: setup
+#| include: false
+
+library(dplyr)
+library(ggplot2)
+library(readr)
+```
+
+## Outline
+
+- What is Joinpoint?\
+- Example: Cancer Incidence Rates\
+- Fitting a Model in R\
+- Exporting Results for Joinpoint\
+- Joinpoint Software Overview\
+- Interpreting Results (APC & AAPC)
+
+## What is Joinpoint?
+
+**Joinpoint Trend Analysis Software** is a free program developed by the
+National Cancer Institute (NCI).
+
+- Fits **joinpoint regression** — piecewise linear models on a log scale
+- Identifies points in time where the trend changes significantly (**joinpoints**)
+- Estimates **Annual Percent Change (APC)** for each trend segment
+- Estimates **Average Annual Percent Change (AAPC)** across the entire period
+
+::: aside
+Download: <https://surveillance.cancer.gov/joinpoint/>
+:::
+
+## Joinpoint Regression
+
+For a rate $r(t)$ observed over years $t$, the model is:
+
+$$\log[r(t)] = \beta_0 + \beta_1 t + \delta_1(t - \tau_1)_+ + \cdots + \delta_k(t - \tau_k)_+$$
+
+where $\tau_1, \ldots, \tau_k$ are the **joinpoints** (change points) and
+$(x)_+ = \max(0,\, x)$.
+
+The APC for a segment is:
+
+$$\text{APC} = (e^{\beta} - 1) \times 100\%$$
+
+## When Should You Use Joinpoint?
+
+Use Joinpoint when you want to:
+
+- Describe **temporal trends** in incidence, mortality, or prevalence rates
+- Identify **when** a trend changed direction or pace
+- Summarize a long time series with a single **AAPC** statistic
+- Produce results consistent with **NCI SEER** publications
+
+## Example Data {.smaller}
+
+Simulated annual cancer incidence counts and population sizes (2000–2022):
+
+```{r}
+#| label: create-data
+#| echo: true
+
+set.seed(42)
+years <- 2000:2022
+
+# Simulate population (growing ~1% per year)
+population <- round(500000 * 1.01^(years - 2000))
+
+# Simulate true rate per 100,000 with a joinpoint around 2010
+true_rate <- ifelse(
+  years <= 2010,
+  50 * exp(-0.02 * (years - 2000)),   # declining trend 2000–2010
+  50 * exp(-0.02 * 10) * exp(0.01 * (years - 2010))  # rising trend 2010–2022
+)
+
+# Simulate observed counts (Poisson)
+counts <- rpois(length(years), lambda = true_rate * population / 1e5)
+
+cancer_data <- tibble(
+  year       = years,
+  population = population,
+  count      = counts,
+  rate       = count / population * 1e5
+)
+
+head(cancer_data)
+```
+
+## Visualizing the Raw Rates
+
+```{r}
+#| label: fig-raw-rates
+#| fig-cap: "Simulated cancer incidence rates per 100,000 (2000–2022)"
+#| echo: false
+
+ggplot(cancer_data, aes(x = year, y = rate)) +
+  geom_point(size = 2, color = "#2C3E82") +
+  geom_line(color = "#2C3E82", linewidth = 0.8) +
+  labs(
+    x = "Year",
+    y = "Rate per 100,000",
+    title = "Cancer Incidence Rate Over Time"
+  ) +
+  theme_bw(base_size = 14)
+```
+
+## Fitting a Poisson Regression Model in R {.smaller}
+
+A **Poisson regression** with `log(population)` as an offset is the standard
+approach for modeling count data and extracting rates:
+
+```{r}
+#| label: fit-model
+#| echo: true
+
+# Fit Poisson regression: count ~ year, with log(population) offset
+poisson_model <- glm(
+  count ~ year,
+  data   = cancer_data,
+  family = poisson(link = "log"),
+  offset = log(population)
+)
+
+summary(poisson_model)
+```
+
+## Extracting Fitted Rates and Standard Errors {.smaller}
+
+Joinpoint needs the **rate** and its **standard error** for each year.
+
+```{r}
+#| label: extract-se
+#| echo: true
+
+# Predicted log-rate and its standard error from the model
+pred <- predict(poisson_model, type = "link", se.fit = TRUE)
+
+cancer_data <- cancer_data |>
+  mutate(
+    fitted_log_rate = pred$fit,
+    se_log_rate     = pred$se.fit,
+    fitted_rate     = exp(fitted_log_rate) * 1e5,
+    # SE of the rate on the original scale (delta method)
+    se_rate         = fitted_rate * se_log_rate
+  )
+
+cancer_data |>
+  select(year, count, population, rate, fitted_rate, se_rate) |>
+  head(8)
+```
+
+## Why Use Fitted Values? {.smaller}
+
+::: columns
+::: {.column width="48%"}
+**Raw rates** can be noisy, especially for:
+
+- Small populations
+- Rare outcomes
+- Short time windows
+
+:::
+::: {.column width="48%"}
+**Model-smoothed rates** provide:
+
+- Stable estimates of the underlying trend
+- A principled standard error for each time point
+- Consistency with methods used in cancer surveillance
+:::
+:::
+
+> Joinpoint can accept either raw rates + standard errors **or**
+> raw counts + population. The smoothed approach is useful when
+> additional covariates (age, sex, race) are adjusted in R.
+
+## Preparing the Joinpoint Export File {.smaller}
+
+Joinpoint expects a **tab-delimited text file** with at minimum:
+
+| Column | Description |
+|--------|-------------|
+| `Year` | Calendar year (time variable) |
+| `Rate` | Rate per 100,000 |
+| `SE`   | Standard error of the rate |
+
+Optional columns: `Count`, `Population`, grouping variables.
+
+## Creating the Export File in R {.smaller}
+
+```{r}
+#| label: export-joinpoint
+#| echo: true
+
+joinpoint_export <- cancer_data |>
+  select(
+    Year       = year,
+    Rate       = fitted_rate,  # model-smoothed rate per 100,000
+    SE         = se_rate,      # SE from fitted model (delta method)
+    Count      = count,
+    Population = population
+  )
+
+# Write tab-delimited file (Joinpoint default format)
+write_tsv(joinpoint_export, "joinpoint_input.txt")
+
+head(joinpoint_export, 5)
+```
+
+::: aside
+`write_tsv()` is from the **{readr}** package. The `.txt` extension is
+recommended by Joinpoint.
+:::
+
+## Joinpoint Input File Format
+
+```
+Year    Rate        SE          Count   Population
+2000    49.73455    0.2228      249     500000
+2001    48.34212    0.2192      244     505000
+2002    47.04291    0.2154      239     510050
+...
+```
+
+Rules:
+
+- **Tab-separated** (not comma-separated)
+- **No missing values** in Year or Rate columns
+- Column headers must match what you specify in the software
+- One row per time point (or per time point × group combination)
+
+## Joinpoint Software: Getting Started
+
+1. Download and install from <https://surveillance.cancer.gov/joinpoint/>
+2. Open Joinpoint → **File → New Session**
+3. Import your tab-delimited text file
+4. Specify:
+   - **Time variable**: `Year`
+   - **Rate variable**: `Rate`
+   - **Standard error variable**: `SE` *(or use count/population)*
+5. Set the **maximum number of joinpoints** (typically 0–4)
+
+## Joinpoint Software: Key Settings
+
+::: columns
+::: {.column width="55%"}
+**Model Selection**
+
+- Default method: **Weighted BIC (WBIC)**
+- Fits models with 0, 1, 2, … *k* joinpoints and selects the one with the lowest WBIC
+- WBIC penalizes model complexity, balancing fit against the number of joinpoints
+- Method: Weighted least squares on log scale
+:::
+::: {.column width="40%"}
+**Additional Options**
+
+- Autocorrelation correction
+- Parallelism test across groups
+- Confidence intervals via Monte Carlo
+:::
+:::
+
+## Running the Analysis
+
+1. Click **Run** (or **Ctrl+R**)
+2. Joinpoint fits models with 0, 1, 2, … *k* joinpoints
+3. **Weighted BIC** selects the best model (lowest WBIC wins)
+4. Results appear in the **Output** window
+
+The software reports:
+
+- Segment-specific **APCs** with 95% confidence intervals
+- **AAPC** for a specified time period
+- Joinpoint locations (years) with 95% CIs
+
+## Interpreting APC {.smaller}
+
+The **Annual Percent Change (APC)** describes the slope within each trend segment:
+
+| APC | Interpretation |
+|-----|----------------|
+| Positive (+) | Rate is **increasing** |
+| Negative (−) | Rate is **decreasing** |
+| Not significant | Trend is **stable** |
+
+Example output:
+
+```
+Segment 1: 2000-2010  APC = -2.0% (95% CI: -2.4%, -1.6%)  p < 0.001
+Segment 2: 2010-2022  APC = +1.0% (95% CI:  0.7%,  1.3%)  p < 0.001
+```
+
+This tells us: rates declined ~2%/year through 2010, then rose ~1%/year.
+
+## Interpreting AAPC {.smaller}
+
+The **Average Annual Percent Change (AAPC)** summarizes the entire period as a
+weighted average of the segment APCs:
+
+$$\text{AAPC} = \left[\left(\prod_{j=1}^{k+1} (1 + \text{APC}_j/100)^{w_j}\right)^{1/\sum w_j} - 1\right] \times 100\%$$
+
+where $w_j$ is the length of segment $j$.
+
+> **Use AAPC** when you want a single number to describe the overall trend
+> (e.g., in an abstract or executive summary).
+>
+> **Use segment APCs** when the timing of change is scientifically important.
+
+## Exporting Results from Joinpoint
+
+Joinpoint produces several exportable outputs:
+
+- **Results table** (APC, AAPC, joinpoint locations) — export as `.csv` or copy to Excel
+- **Graphs** — save as `.emf`, `.png`, or `.pdf`
+- **Session file** (`.jps`) — saves all settings for reproducibility
+
+Re-import the results table into R for further analysis or reporting with
+packages like **{gtsummary}** or **{flextable}**.
+
+## End-to-End Workflow Summary
+
+```
+R                               Joinpoint Software
+───────────────────────         ──────────────────────────────────
+1. Load / clean data            4. Import tab-delimited file
+2. Fit Poisson model            5. Specify variables & settings
+3. Export rate + SE  ──────►    6. Weighted BIC model selection
+   (write_tsv)                  7. Review APC / AAPC results
+                      ◄──────   8. Export results table / graphs
+9. Import results               
+10. Report / visualize           
+```
+
+## Key Takeaways
+
+- **R** handles data preparation, covariate adjustment, and rate estimation
+- **Joinpoint** identifies when trends changed and quantifies the rate of change
+- The **APC** describes the trend in each segment; the **AAPC** summarizes the whole period
+- Provide Joinpoint with the **rate per 100,000** and its **standard error**
+- Save your Joinpoint **session file** (`.jps`) for reproducibility
+
+## Resources
+
+- Joinpoint software & documentation:\
+  <https://surveillance.cancer.gov/joinpoint/>
+
+- NCI SEER Stat tutorials:\
+  <https://seer.cancer.gov/seerstat/>
+
+- Clegg LX et al. (2009). Joinpoint regression analysis of cancer trends.
+  *Journal of the National Cancer Institute*, 101(12), 913–914.
+
+- Tiwari RC et al. (2005). Weighted AIC and BIC for joinpoint regression.
+  *Statistics and Its Interface*, 2(4), 379–396.
