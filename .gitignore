@@ -51,3 +51,8 @@ rsconnect/
 inst/doc
 /doc/
 /Meta/
+
+/.quarto/
+**/*.quarto_ipynb
+inst/example-export
+inst/reprex

@@ -1,0 +1,130 @@
+/*-- scss:defaults --*/
+// headings
+$presentation-heading-font: 'Source Sans Pro',  Helvetica, sans-serif  !default;
+$presentation-heading-color: #022851 !default;
+  $h1-font-size: 1.6em !default;
+$h2-font-size: 1.3em !default;
+$h3-font-size: 1.15em !default;
+
+//code
+$code-color: #022851 !default;
+  $font-family-monospace: 'Inconsolata', monospace  !default;
+
+// general
+$body-bg: #fff;
+  $body-color: #000000;
+  $number-color: #A9A9A9;
+  $link-color: #022851;
+  $presentation-font-size-root: 35px;
+  $accent-yellow: #FFBF00;
+  $bar-width-desktop: 24px;      // Bar width on larger screens
+  $bar-width-mobile: 12px;       // Bar width on small screens
+  $bar-offset: 0;                // Offset from left; keep 0 for flush-left
+/*-- scss:rules --*/
+.reveal pre code {
+    background-color: #f8f8f8;
+      font-size: 1em;
+    padding: 0.5em;
+    line-height: 1.2em;
+  }
+
+
+.subtitle {
+  color: $body-bg;
+  font-size: $h2-font-size;
+  font-family: $presentation-heading-font;
+}
+
+.author {
+  color: $body-bg;
+  font-size: $h2-font-size;
+  font-family: $presentation-heading-font;
+}
+
+.footer {
+  font-family: $presentation-heading-font;
+}
+
+.reveal .slide-number {
+  font-family: $presentation-heading-font;
+}
+
+.reveal .panel-tabset [role=tab] {
+  font-size: 0.8em;
+}
+
+.reveal .footer {
+  color: #022851;
+}
+
+
+.center-x{
+  text-align: center;
+}
+
+section.has-dark-background a, section.has-dark-background a:hover {
+  color: #fee4ff;
+}
+
+.reveal .quarto-title-block{
+  background-color: $code-color;
+  position: relative; // ensure ::before can be absolutely positioned
+}
+
+.reveal .quarto-title-block::before{
+  color: $body-bg;
+  content: none !important;
+}
+
+/* Append to the title text */
+.reveal .quarto-title-block h1.title::before {
+  content: "Biostatistics Support Unit (BSU)";
+  color: $accent-yellow; // or inherit if you prefer
+  width: 100%;
+  height: 30px;
+  font-weight: 200;
+  white-space: nowrap;
+}
+
+
+.reveal .title-slide {
+  background-color: $code-color;
+}
+
+.reveal .title-slide::before {
+  content: "";
+  display: block;
+  width: 3%; /* Bar width */
+  height: 100%;
+  background-color: $accent-yellow; /* Yellow */
+}
+
+.slide-logo {
+  display: block !important;
+  position: fixed !important;
+  top: 0 !important;
+  right: 10px !important;
+  max-height: 15% !important;
+  height: 100% !important;
+  width: auto !important;
+  color: $body-color !important;
+}
+
+.slide-number, .reveal.has-logo .slide-number {
+  bottom: 10px !important;
+  right: 10px !important;
+  top: unset !important;
+  color: $number-color !important;
+}
+
+.reveal .slide-menu-button {
+  color: $number-color !important;
+}
+
+.inverse {
+  background-color: #022851 !important;
+    $h1-color: white !important;
+    $h2-color: white !important;
+    $h3-color: white !important;
+    $footer-color: white !important;
+}

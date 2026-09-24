@@ -1,0 +1,18 @@
+project:
+  execute-dir: project
+  render:
+    - "*.qmd"
+  # type: manuscript
+format:
+  revealjs:
+    scrollable: true
+    cap-location: top
+    fig-cap-location: top
+    tbl-cap-location: top
+    embed-resources: true
+    lightbox: auto
+    theme: inst/www/bsu_theme_revealjs.scss
+    footer: |
+      Biostatistics Support Unit (BSU)
+    transition: fade
+    slide-number: true
